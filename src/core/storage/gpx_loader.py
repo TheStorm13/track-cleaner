@@ -11,8 +11,8 @@ logger = logging.getLogger("GPXStorage")
 class GPXStorage:
     """Управление загрузкой/сохранением GPX-файлов с обработкой ошибок"""
 
-    def __init__(self, storage_dir: Union[str, Path] = "gpx_storage"):
-        self.storage_dir = Path(storage_dir)
+    def __init__(self, base_dir: Path = "gpx_storage"):
+        self.storage_dir = base_dir / "gpx_files"
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Storage directory set to: {self.storage_dir.resolve()}")
 

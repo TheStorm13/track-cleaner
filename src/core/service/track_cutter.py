@@ -1,8 +1,9 @@
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import gpxpy
 import gpxpy.gpx
 from geopy.distance import geodesic
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def distance(p1, p2):
@@ -48,7 +49,7 @@ def process_segment_static(segment_points, max_path_km, close_threshold, min_pat
 
 class TrackCutter:
 
-    def extract_bad_segments(self, gpx, max_path_km=10000.0, close_threshold=30.0, min_path_length=200.0):
+    def extract_bad_segments(self, gpx, max_path_km=1000.0, close_threshold=30.0, min_path_length=200.0):
         all_segment_points = []
 
         for track in gpx.tracks:
@@ -78,3 +79,28 @@ class TrackCutter:
 
         self.cut_ranges = bad_ranges
         return bad_gpx_list
+
+    def cut_segments(self, gpx: gpxpy.gpx.GPX, bad_segments: list[gpxpy.gpx.GPX], bad_segments_indexes: list[int])-> gpxpy.gpx.GPX:
+        # Собираем все "плохие" точки из указанных индексов
+        bad_points = set()
+
+        for index in bad_segments_indexes:
+            i = index - 1
+            if 0 <= i < len(bad_segments):
+                bad_gpx = bad_segments[i]
+                for track in bad_gpx.tracks:
+                    for segment in track.segments:
+                        for point in segment.points:
+                            # Добавляем координаты (широта, долгота, высота) в множество
+                            bad_points.add((point.latitude, point.longitude, point.elevation))
+
+        # Удаляем эти точки из оригинального gpx
+        for track in gpx.tracks:
+            for segment in track.segments:
+                segment.points = [
+                    pt for pt in segment.points
+                    if (pt.latitude, pt.longitude, pt.elevation) not in bad_points
+                ]
+
+        return gpx
+

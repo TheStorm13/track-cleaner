@@ -1,18 +1,5 @@
-'''
-1. Получить путь до папки с треками
-2. Получить список треков в папке
-3. Загрузить треки
-4. Отсортировать треки по дате
-5. Соеденить треки
-5.1 Проверить, что точки в треке
-6. Сохранить объединённый трек в файл
-7. Предложить пользователю сократить количество точек
-8. Найти все отростки в треке
-9. Предложить пользователю удалить отростки
-10. Сохранить трек без отростков
-'''
 import logging
-from pathlib import Path
+import pathlib
 
 from src.core.service.track_cutter import TrackCutter
 from src.core.service.track_merger import TrackMerger
@@ -20,14 +7,14 @@ from src.core.service.track_preprocessor import TrackPreprocessor
 from src.core.service.track_simplifier import TrackSimplifier
 from src.core.service.track_validator import TrackValidator
 from src.core.storage.gpx_loader import GPXStorage
+from src.ui.io import IO
 from src.visualizer.track_visualizer import TrackVisualizer
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("gpx_processing.log"),
         logging.StreamHandler()
     ]
 )
@@ -36,10 +23,21 @@ logger = logging.getLogger("main")
 
 def main():
     # Инициализация менеджера файлов
-    manager = GPXStorage(storage_dir="processed_tracks")
 
+
+    base_path = pathlib.Path(__file__).parent
+
+    gpx_dir = base_path / "gpx_files"
+    gpx_dir.mkdir(exist_ok=True)
+
+    gpx_row_dir = base_path / "gpx_files" / "raw"
+    gpx_row_dir.mkdir(exist_ok=True)
+
+    manager = GPXStorage(base_path)
     # Поиск и загрузка GPX-файлов
-    gpx_files = manager.find_gpx_files(Path.home() / "Downloads" / "track")
+
+    IO.input_path()
+    gpx_files = manager.find_gpx_files(gpx_dir)
     gpx_objects = []
 
     for file_path in gpx_files:
@@ -84,26 +82,42 @@ def main():
         logger.warning("Simplification failed, saving only merged track")
         manager.save_gpx(merged_gpx, "merged_tracks.gpx")
 
-    visualizer = TrackVisualizer(tiles="Stamen Terrain", default_zoom=10)
+    visualizer = TrackVisualizer(base_path)
 
     cutter = TrackCutter()
     bad_segments = cutter.extract_bad_segments(simplified_gpx)
 
-
-
     # Визуализация одного трека
-    track_map = visualizer.plot_track_with_loops(
+    track_map = visualizer.plot_track_with_bad_segments(
         base_gpx=simplified_gpx,
-        loops=bad_segments
+        bad_segments=bad_segments
     )
-    # track_map = visualizer.plot_single_track(simplified_gpx)
 
     if track_map:
-        visualizer.save_map(track_map, "single_track.html")
+        visualizer.save_map(track_map, "track_with_bad_segments.html")
+
+    bad_segments_input = IO.input_bad_segments()
+
+    cutting_track = cutter.cut_segments(
+        simplified_gpx,
+        bad_segments=bad_segments,
+        bad_segments_indexes=bad_segments_input
+    )
+
+    track_map = visualizer.plot_single_track(cutting_track)
+
+    if track_map:
+        visualizer.save_map(track_map, "cutting_track.html")
+
+    if cutting_track:
+        manager.save_gpx(cutting_track, "cutting_track.gpx")
+    else:
+        logger.warning("Cutting failed, saving only merged track")
 
 
 if __name__ == "__main__":
     try:
         main()
+
     except Exception as e:
         logger.critical(f"Unhandled exception in main: {e}", exc_info=True)

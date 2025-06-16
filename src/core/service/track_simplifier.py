@@ -12,10 +12,8 @@ logger = logging.getLogger("TrackSimplifier")
 class TrackSimplifier:
     """Упрощение трека путем сокращения точек с сохранением формы"""
 
-
     def __init__(self):
         self.distance_calculator = TrackValidator()
-
 
     def simplify_track(
             self,
