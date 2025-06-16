@@ -13,8 +13,12 @@ class TrackCutter:
     def distance(self, p1, p2):
         return geodesic((p1.latitude, p1.longitude), (p2.latitude, p2.longitude)).meters
 
-    def process_segment(self, segment_points, max_path_km=10000.0, close_threshold=30.0, min_path_length=200.0):
-        points = segment_points
+    def extract_bad_segments(self, gpx, max_path_km=1000.0, close_threshold=30.0, min_path_length=200.0) -> list[
+        gpxpy.gpx.GPX]:
+        points = []
+        for track in gpx.tracks:
+            for segment in track.segments:
+                points.extend(segment.points)
         n = len(points)
         bad_gpx_list = []
         bad_ranges = []
@@ -37,39 +41,10 @@ class TrackCutter:
 
                     # Создаем отдельный GPX
                     gpx_bad = self.create_gpx(i, j, points)
+
                     bad_gpx_list.append(gpx_bad)
                     bad_ranges.append((i, j))
                     break  # идем к следующей точке
-
-        return bad_gpx_list, bad_ranges
-
-    def extract_bad_segments(self, gpx, max_path_km=1000.0, close_threshold=30.0, min_path_length=200.0) -> list[
-        gpxpy.gpx.GPX]:
-        all_segment_points = []
-
-        # Собираем все сегменты
-        for track in gpx.tracks:
-            for segment in track.segments:
-                all_segment_points.append(segment.points)
-
-        bad_gpx_list = []
-        bad_ranges = []
-
-        # Параллельная обработка с прогресс-баром
-        with ThreadPoolExecutor() as executor:
-            futures = [
-                executor.submit(self.process_segment, seg_points, max_path_km, close_threshold, min_path_length)
-                for seg_points in all_segment_points
-            ]
-
-            # tqdm оборачивает итерацию по futures
-            for future in tqdm(as_completed(futures), total=len(futures), desc="Обработка сегментов"):
-                try:
-                    gpx_list, ranges = future.result()
-                    bad_gpx_list.extend(gpx_list)
-                    bad_ranges.extend(ranges)
-                except Exception as e:
-                    print(f"Ошибка в одном из потоков: {e}")
 
         self.cut_ranges = bad_ranges
         return bad_gpx_list
