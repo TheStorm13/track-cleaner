@@ -1,8 +1,6 @@
 import logging
-import pathlib
 from pathlib import Path
-from typing import List
-from typing import Optional, Tuple
+from typing import Optional
 
 import branca.colormap as cm
 import folium
@@ -11,17 +9,19 @@ import numpy as np
 from folium import DivIcon
 from folium.plugins import MeasureControl
 
-logger = logging.getLogger("GPXVisualizer")
+from config import BASE_PATH
+from src.utils.gpx_utils import GpxUtils
+
+logger = logging.getLogger(__name__)
 
 
 class TrackVisualizer:
     """Класс для визуализации GPX-треков на интерактивных картах"""
 
-    DEFAULT_TILES = "OpenStreetMap"
     DEFAULT_ZOOM = 8
     DEFAULT_COLORS = ['blue', 'green']
 
-    def __init__(self, base_path:Path,default_zoom: int = DEFAULT_ZOOM):
+    def __init__(self, base_path: Path = BASE_PATH, default_zoom: int = DEFAULT_ZOOM):
         """
         Инициализация визуализатора
         :param tiles: Стиль карты (OpenStreetMap, Stamen Terrain, CartoDB positron)
@@ -39,7 +39,7 @@ class TrackVisualizer:
 
         logger.info("GPX visualizer initialized")
 
-    def create_base_map(self, center: Tuple[float, float]) -> folium.Map:
+    def _create_base_map(self, center: tuple[float, float]) -> folium.Map:
         """Создание базовой карты с центром в указанных координатах"""
         return folium.Map(
             location=center,
@@ -48,7 +48,7 @@ class TrackVisualizer:
         )
 
     @staticmethod
-    def _calculate_center(gpx: gpxpy.gpx.GPX) -> Tuple[float, float]:
+    def _calculate_center(gpx: gpxpy.gpx.GPX) -> tuple[float, float]:
         """Расчет центра карты по точкам трека"""
         lats = []
         lons = []
@@ -80,7 +80,7 @@ class TrackVisualizer:
                 logger.error("No valid points for center calculation")
                 return None
 
-            folium_map = self.create_base_map(center)
+            folium_map = self._create_base_map(center)
             folium_map.title = map_title
 
             # Добавление элементов управления
@@ -127,8 +127,8 @@ class TrackVisualizer:
             logger.error(f"Error visualizing track: {e}", exc_info=True)
             return None
 
-    def _process_segment(self, segment: gpxpy.gpx.GPXTrackSegment, color_by: str) -> Tuple[
-        List[List[float]], List[float]]:
+    def _process_segment(self, segment: gpxpy.gpx.GPXTrackSegment, color_by: str) -> tuple[
+        list[list[float]], list[float]]:
         """Обрабатывает сегмент и возвращает координаты и значения для цветовой окраски"""
         locations = []
         values = []
@@ -143,12 +143,12 @@ class TrackVisualizer:
             elif color_by == "speed" and prev_point:
                 if point.time and prev_point.time:
                     time_diff = (point.time - prev_point.time).total_seconds()
-                    dist = self._distance_between_points(prev_point, point)
+                    dist = GpxUtils.distance_between_points(prev_point, point)
                     values.append((dist / time_diff) * 3.6 if time_diff > 0 else 0)  # км/ч
                 else:
                     values.append(0)
             elif color_by == "slope" and prev_point and point.elevation is not None and prev_point.elevation is not None:
-                dist = self._distance_between_points(prev_point, point)
+                dist = GpxUtils.distance_between_points(prev_point, point)
                 elev_diff = point.elevation - prev_point.elevation
                 values.append((elev_diff / dist) * 100 if dist > 0 else 0)  # % уклона
             else:
@@ -168,20 +168,6 @@ class TrackVisualizer:
         except Exception as e:
             logger.error(f"Error saving map: {e}", exc_info=True)
             return False
-
-    @staticmethod
-    def _distance_between_points(point1, point2) -> float:
-        """Расчет расстояния между двумя точками (в метрах)"""
-        from math import radians, sin, cos, sqrt, asin
-
-        lat1, lon1 = radians(point1.latitude), radians(point1.longitude)
-        lat2, lon2 = radians(point2.latitude), radians(point2.longitude)
-
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-
-        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-        return 6371000 * 2 * asin(sqrt(a))  # Земной радиус в метрах
 
     def plot_track_with_bad_segments(
             self,
@@ -206,7 +192,7 @@ class TrackVisualizer:
             # Создаем базовую карту
             center = (np.mean([p.latitude for p in all_points]),
                       np.mean([p.longitude for p in all_points]))
-            folium_map = self.create_base_map(center)
+            folium_map = self._create_base_map(center)
 
             # Добавляем основной трек
             base_group = folium.FeatureGroup(name="Основной трек", show=True)
