@@ -1,11 +1,10 @@
 # После получения треков, отсортировать их по времени
 import logging
 from datetime import datetime, timezone
-from typing import List
 
 import gpxpy.gpx
 
-logger = logging.getLogger("TrackPreprocessor")
+logger = logging.getLogger(__name__)
 
 
 class TrackPreprocessor:
@@ -34,9 +33,9 @@ class TrackPreprocessor:
 
     def sort_by_date(
             self,
-            gpx_list: List[gpxpy.gpx.GPX],
+            gpx_list: list[gpxpy.gpx.GPX],
             reverse: bool = True
-    ) -> List[gpxpy.gpx.GPX]:
+    ) -> list[gpxpy.gpx.GPX]:
         """Сортировка списка GPX-треков по дате"""
         try:
             return sorted(

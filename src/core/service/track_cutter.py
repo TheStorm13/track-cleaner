@@ -1,55 +1,77 @@
+import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-import gpxpy
 import gpxpy.gpx
-from geopy.distance import geodesic
 from tqdm import tqdm
 
+from src.utils.gpx_utils import GpxUtils
 
-def distance(p1, p2):
-    return geodesic((p1.latitude, p1.longitude), (p2.latitude, p2.longitude)).meters
-
-
-def create_gpx(i, j, points):
-    segment_points = points[i:j + 1]
-    gpx_bad = gpxpy.gpx.GPX()
-    track = gpxpy.gpx.GPXTrack()
-    gpx_bad.tracks.append(track)
-    segment = gpxpy.gpx.GPXTrackSegment()
-    track.segments.append(segment)
-    segment.points.extend(segment_points)
-    return gpx_bad
-
-
-def process_segment_static(segment_points, max_path_km, close_threshold, min_path_length):
-    n = len(segment_points)
-    bad_gpx_list = []
-    bad_ranges = []
-
-    for i in range(n):
-        total_distance = 0.0
-
-        for j in range(i + 1, n):
-            seg_dist = distance(segment_points[j - 1], segment_points[j])
-            total_distance += seg_dist
-
-            if total_distance > max_path_km:
-                break
-
-            if distance(segment_points[i], segment_points[j]) < close_threshold and total_distance > min_path_length:
-                if any(max(i, r1) <= min(j, r2) for r1, r2 in bad_ranges):
-                    continue
-                gpx_bad = create_gpx(i, j, segment_points)
-                bad_gpx_list.append(gpx_bad)
-                bad_ranges.append((i, j))
-                break
-
-    return bad_gpx_list, bad_ranges
+logger = logging.getLogger(__name__)
 
 
 class TrackCutter:
+    def process_segment_static(self,
+                               segment_points,
+                               loop_closure_threshold_m: float,
+                               min_closed_loop_length_km: float,
+                               max_closed_loop_length_km: float
+                               ) -> tuple[list[gpxpy.gpx.GPX], list[tuple[int, int]]]:
+        """
+        Обрабатывает один сегмент трека для поиска замыкающихся петель.
 
-    def extract_bad_segments(self, gpx, max_path_km=1000.0, close_threshold=30.0, min_path_length=200.0):
+        Args:
+            segment_points: список точек сегмента трека
+            loop_closure_threshold_m: расстояние в метрах, при котором считается, что петля замкнулась
+            min_closed_loop_length_km: минимальная длина замыкающей петли в километрах
+            max_closed_loop_length_km: максимальная длина замыкающей петли в километрах
+
+        Returns:
+            tuple: список плохих GPX-сегментов и список диапазонов индексов, где найдены замыкающиеся петли
+        """
+        n = len(segment_points)
+        bad_gpx_list = []
+        bad_ranges = []
+
+        for i in range(n):
+            total_distance = 0.0
+
+            for j in range(i + 1, n):
+                seg_dist = GpxUtils.distance_between_points(segment_points[j - 1], segment_points[j])
+                total_distance += seg_dist
+
+                if total_distance > max_closed_loop_length_km:
+                    break
+
+                if GpxUtils.distance_between_points(segment_points[i],
+                                                    segment_points[
+                                                        j]) < loop_closure_threshold_m and total_distance > min_closed_loop_length_km:
+                    if any(max(i, r1) <= min(j, r2) for r1, r2 in bad_ranges):
+                        continue
+                    gpx_bad = GpxUtils.create_gpx(i, j, segment_points)
+                    bad_gpx_list.append(gpx_bad)
+                    bad_ranges.append((i, j))
+                    break
+
+        return bad_gpx_list, bad_ranges
+
+    def extract_bad_segments(self,
+                             gpx: gpxpy.gpx.GPX,
+                             loop_closure_threshold_m: float,
+                             min_closed_loop_length_km: float,
+                             max_closed_loop_length_km: float
+                             ) -> list[gpxpy.gpx.GPX]:
+        """
+
+
+        Args:
+            gpx:
+            max_closed_loop_length_km:
+            loop_closure_threshold_m:
+            min_closed_loop_length_km:
+
+        Returns:
+
+        """
         all_segment_points = []
 
         for track in gpx.tracks:
@@ -63,8 +85,8 @@ class TrackCutter:
         with ProcessPoolExecutor() as executor:
             futures = [
                 executor.submit(
-                    process_segment_static,
-                    seg_points, max_path_km, close_threshold, min_path_length
+                    self.process_segment_static,
+                    seg_points, loop_closure_threshold_m, min_closed_loop_length_km, max_closed_loop_length_km
                 )
                 for seg_points in all_segment_points
             ]
@@ -80,7 +102,21 @@ class TrackCutter:
         self.cut_ranges = bad_ranges
         return bad_gpx_list
 
-    def cut_segments(self, gpx: gpxpy.gpx.GPX, bad_segments: list[gpxpy.gpx.GPX], bad_segments_indexes: list[int])-> gpxpy.gpx.GPX:
+    def cut_segments(self,
+                     gpx: gpxpy.gpx.GPX,
+                     bad_segments: list[gpxpy.gpx.GPX],
+                     bad_segments_indexes: list[int]
+                     ) -> gpxpy.gpx.GPX:
+        """
+
+        Args:
+            gpx:
+            bad_segments:
+            bad_segments_indexes:
+
+        Returns:
+
+        """
         # Собираем все "плохие" точки из указанных индексов
         bad_points = set()
 
@@ -103,4 +139,3 @@ class TrackCutter:
                 ]
 
         return gpx
-
