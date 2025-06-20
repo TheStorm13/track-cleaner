@@ -1,24 +1,33 @@
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import gpxpy
 import gpxpy.gpx
 
-logger = logging.getLogger("GPXStorage")
+from config import BASE_PATH
+
+logger = logging.getLogger(__name__)
 
 
 class GPXStorage:
     """Управление загрузкой/сохранением GPX-файлов с обработкой ошибок"""
 
-    def __init__(self, base_dir: Path = "gpx_storage"):
-        self.storage_dir = base_dir / "gpx_files"
+    def __init__(self, base_path: Path = BASE_PATH) -> None:
+        self.storage_dir = base_path / "gpx_files"
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+
+        self.storage_raw_dir = self.storage_dir / "raw"
+        self.storage_raw_dir.mkdir(parents=True, exist_ok=True)
+
         logger.info(f"Storage directory set to: {self.storage_dir.resolve()}")
 
-    def find_gpx_files(self, search_path: Union[str, Path]) -> list[Path]:
+    def find_gpx_files(self, search_path: Path = None) -> list[Path]:
         """Рекурсивный поиск GPX-файлов с обработкой ошибок"""
         try:
+            if search_path is None:
+                search_path = self.storage_raw_dir
+
             path = Path(search_path).resolve()
             if not path.exists():
                 raise FileNotFoundError(f"Path not found: {path}")
@@ -31,7 +40,7 @@ class GPXStorage:
             logger.error(f"Error finding GPX files: {e}", exc_info=True)
             return []
 
-    def load_gpx(self, file_path: Union[str, Path]) -> Optional[gpxpy.gpx.GPX]:
+    def load_gpx(self, file_path: Path) -> Optional[gpxpy.gpx.GPX]:
         """Загрузка GPX-файла с обработкой ошибок парсинга"""
         try:
             path = Path(file_path)
