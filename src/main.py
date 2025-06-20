@@ -1,11 +1,10 @@
 import logging
-import pathlib
 
+from config import BASE_PATH
 from src.core.service.track_cutter import TrackCutter
 from src.core.service.track_merger import TrackMerger
 from src.core.service.track_preprocessor import TrackPreprocessor
 from src.core.service.track_simplifier import TrackSimplifier
-from src.core.service.track_validator import TrackValidator
 from src.core.storage.gpx_loader import GPXStorage
 from src.ui.io import IO
 from src.visualizer.track_visualizer import TrackVisualizer
@@ -22,22 +21,22 @@ logger = logging.getLogger("main")
 
 
 def main():
-    # Инициализация менеджера файлов
-
-
-    base_path = pathlib.Path(__file__).parent
-
-    gpx_dir = base_path / "gpx_files"
-    gpx_dir.mkdir(exist_ok=True)
-
-    gpx_row_dir = base_path / "gpx_files" / "raw"
-    gpx_row_dir.mkdir(exist_ok=True)
-
+    # Инициализация основных компонентов приложения
+    base_path = BASE_PATH
     manager = GPXStorage(base_path)
-    # Поиск и загрузка GPX-файлов
+    sorter = TrackPreprocessor()
+    merger = TrackMerger()
+    simplifier = TrackSimplifier()
+    cutter = TrackCutter()
+    visualizer = TrackVisualizer(base_path)
 
-    IO.input_path()
-    gpx_files = manager.find_gpx_files(gpx_dir)
+    # Вывод информации о приложении и настройках
+    IO.print_app_info()
+    IO.print_path_info()
+    simplification, min_length, max_length, threshold = IO.input_cleaning_parameters()
+
+    # Поиск и загрузка GPX-файлов
+    gpx_files = manager.find_gpx_files()
     gpx_objects = []
 
     for file_path in gpx_files:
@@ -49,70 +48,53 @@ def main():
         return
 
     # Сортировка треков
-    sorter = TrackPreprocessor()
     sorted_tracks = sorter.sort_by_date(gpx_objects)
 
     # Объединение первых трех треков
-    merger = TrackMerger()
-    merged_gpx = merger.merge_gpx_tracks(sorted_tracks)
+    merged_track = merger.merge_gpx_tracks(sorted_tracks)
 
-    if not merged_gpx:
+    if not merged_track:
         logger.error("Failed to merge tracks. Exiting.")
         return
 
-    # Анализ расстояний
-    distance_checker = TrackValidator()
-    max_dist, points = distance_checker.calculate_max_distance(merged_gpx)
+    manager.save_gpx(merged_track, "merged_tracks.gpx")
+    print("Треки успешно объединены и сохранены в 'merged_tracks.gpx'.")
 
-    if max_dist > 0:
-        logger.info(f"Max distance between points: {max_dist:.2f} meters")
-        if points:
-            p1, p2 = points
-            logger.debug(f"Between points: ({p1.latitude},{p1.longitude}) and ({p2.latitude},{p2.longitude})")
+    # Упрощение трека с заданным уровнем точности
+    simplified_track = simplifier.simplify_track(merged_track, min_distance=simplification)
+    manager.save_gpx(simplified_track, "simplified_track.gpx")
 
-    # Упрощение трека
-    simplifier = TrackSimplifier()
-    simplified_gpx = simplifier.simplify_track(merged_gpx, min_distance=15.0)
+    track_map = visualizer.plot_single_track(simplified_track)
 
-    # Сохранение результатов
-    if simplified_gpx:
-        manager.save_gpx(merged_gpx, "merged_tracks.gpx")
-        manager.save_gpx(simplified_gpx, "simplified_track.gpx")
-    else:
-        logger.warning("Simplification failed, saving only merged track")
-        manager.save_gpx(merged_gpx, "merged_tracks.gpx")
+    visualizer.save_map(track_map, "track_simplified.html")
+    print("Трек успешно упрощён и сохранён в 'simplified_track.gpx'. ")
 
-    visualizer = TrackVisualizer(base_path)
+    # Поиск плохих сегментов
+    bad_segments = cutter.extract_bad_segments(simplified_track, threshold, min_length, max_length)
 
-    cutter = TrackCutter()
-    bad_segments = cutter.extract_bad_segments(simplified_gpx)
-
-    # Визуализация одного трека
     track_map = visualizer.plot_track_with_bad_segments(
-        base_gpx=simplified_gpx,
+        base_gpx=simplified_track,
         bad_segments=bad_segments
     )
 
-    if track_map:
-        visualizer.save_map(track_map, "track_with_bad_segments.html")
+    visualizer.save_map(track_map, "track_with_bad_segments.html")
 
-    bad_segments_input = IO.input_bad_segments()
+    # Выбор плохих сегментов трека для удаления
+    bad_segments_input = IO.input_bad_segments(len(bad_segments))
 
     cutting_track = cutter.cut_segments(
-        simplified_gpx,
+        simplified_track,
         bad_segments=bad_segments,
         bad_segments_indexes=bad_segments_input
     )
 
     track_map = visualizer.plot_single_track(cutting_track)
 
-    if track_map:
-        visualizer.save_map(track_map, "cutting_track.html")
-
-    if cutting_track:
-        manager.save_gpx(cutting_track, "cutting_track.gpx")
-    else:
-        logger.warning("Cutting failed, saving only merged track")
+    visualizer.save_map(track_map, "result_track.html")
+    manager.save_gpx(cutting_track, "result_track.gpx")
+    print(f"Удаление плохих сегментов завершено. Удалено {len(bad_segments_input)} сегментов."
+          "Результат можно посмотреть в 'result_track.html'. "
+          "Результат сохранён в 'result_track.gpx'.")
 
 
 if __name__ == "__main__":
