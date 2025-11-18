@@ -100,6 +100,10 @@ class TrackCutter:
                     print(f"Ошибка в одном из процессов: {e}")
 
         self.cut_ranges = bad_ranges
+
+        bad_gpx_list.sort(key=lambda gpx: (gpx.tracks[0].segments[0].points[0].latitude,
+                                           gpx.tracks[0].segments[0].points[0].longitude))
+
         return bad_gpx_list
 
     def cut_segments(self,
