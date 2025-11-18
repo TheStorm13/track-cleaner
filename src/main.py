@@ -98,14 +98,14 @@ def main():
     visualizer.save_map(track_map, "result_track.html")
     manager.save_gpx(cutting_track, "result_track.gpx")
 
-    compare_tracks_map= visualizer.plot_compare_tracks(
+    compare_tracks_map = visualizer.plot_compare_tracks(
         simplified_track,
         cutting_track
     )
 
     visualizer.save_map(compare_tracks_map, "compare_simplified_and_result.html")
 
-    compare_tracks_map= visualizer.plot_compare_tracks(
+    compare_tracks_map = visualizer.plot_compare_tracks(
         merged_track,
         cutting_track
     )

@@ -1,5 +1,6 @@
 from haversine import haversine, Unit
 
+
 class TrackAnalyzer:
 
     def haversine_distance(self, lat1, lon1, lat2, lon2):
