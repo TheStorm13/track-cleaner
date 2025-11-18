@@ -1,3 +1,4 @@
+import copy
 import logging
 
 from config import BASE_PATH
@@ -60,6 +61,10 @@ def main():
     manager.save_gpx(merged_track, "merged_tracks.gpx")
     print("Треки успешно объединены и сохранены в 'merged_tracks.gpx'.")
 
+    track_map = visualizer.plot_single_track(merged_track)
+    visualizer.save_map(track_map, "track_merged.html")
+    print("Трек успешно упрощён и сохранён в 'merged_track.gpx'. ")
+
     # Упрощение трека с заданным уровнем точности
     simplified_track = simplifier.simplify_track(merged_track, min_distance=simplification)
     manager.save_gpx(simplified_track, "simplified_track.gpx")
@@ -83,7 +88,7 @@ def main():
     bad_segments_input = IO.input_bad_segments(len(bad_segments))
 
     cutting_track = cutter.cut_segments(
-        simplified_track,
+        copy.deepcopy(simplified_track),
         bad_segments=bad_segments,
         bad_segments_indexes=bad_segments_input
     )
@@ -92,6 +97,21 @@ def main():
 
     visualizer.save_map(track_map, "result_track.html")
     manager.save_gpx(cutting_track, "result_track.gpx")
+
+    compare_tracks_map= visualizer.plot_compare_tracks(
+        simplified_track,
+        cutting_track
+    )
+
+    visualizer.save_map(compare_tracks_map, "compare_simplified_and_result.html")
+
+    compare_tracks_map= visualizer.plot_compare_tracks(
+        merged_track,
+        cutting_track
+    )
+
+    visualizer.save_map(compare_tracks_map, "compare_merged_and_result.html")
+
     print(f"Удаление плохих сегментов завершено. Удалено {len(bad_segments_input)} сегментов."
           "Результат можно посмотреть в 'result_track.html'. "
           "Результат сохранён в 'result_track.gpx'.")
