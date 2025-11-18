@@ -259,3 +259,71 @@ class TrackVisualizer:
         except Exception as e:
             logger.error(f"Ошибка при визуализации трека: {e}", exc_info=True)
             return None
+
+    def plot_compare_tracks(
+            self,
+            gpx1: gpxpy.gpx.GPX,
+            gpx2: gpxpy.gpx.GPX,
+            color1: str = "red",
+            color2: str = "blue",
+            line_weight: int = 4
+    ) -> Optional[folium.Map]:
+        try:
+            # Собираем все точки для вычисления центра карты
+            all_points = []
+            for gpx in [gpx1, gpx2]:
+                for track in gpx.tracks:
+                    for segment in track.segments:
+                        all_points.extend(segment.points)
+
+            if not all_points:
+                logger.warning("No points found for visualization")
+                return None
+
+            # Создаем базовую карту
+            center = (np.mean([p.latitude for p in all_points]),
+                      np.mean([p.longitude for p in all_points]))
+            folium_map = self._create_base_map(center)
+
+            # Добавляем первый трек
+            group1 = folium.FeatureGroup(name="Трек 1", show=True)
+            folium_map.add_child(group1)
+
+            for track in gpx1.tracks:
+                for segment in track.segments:
+                    if len(segment.points) < 2:
+                        continue
+                    locations = [[p.latitude, p.longitude] for p in segment.points]
+                    folium.PolyLine(
+                        locations=locations,
+                        color=color1,
+                        weight=line_weight,
+                        opacity=0.7,
+                        popup="Трек 1"
+                    ).add_to(group1)
+
+            # Добавляем второй трек
+            group2 = folium.FeatureGroup(name="Трек 2", show=True)
+            folium_map.add_child(group2)
+
+            for track in gpx2.tracks:
+                for segment in track.segments:
+                    if len(segment.points) < 2:
+                        continue
+                    locations = [[p.latitude, p.longitude] for p in segment.points]
+                    folium.PolyLine(
+                        locations=locations,
+                        color=color2,
+                        weight=line_weight,
+                        opacity=0.7,
+                        popup="Трек 2"
+                    ).add_to(group2)
+
+            # Добавляем контроль слоев
+            folium.LayerControl().add_to(folium_map)
+
+            return folium_map
+
+        except Exception as e:
+            logger.error(f"Ошибка при визуализации сравнения треков: {e}", exc_info=True)
+            return None
