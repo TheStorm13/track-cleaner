@@ -1,3 +1,16 @@
 gpxpy
 folium
 numpy
+tqdm
+haversine
+gpxpy
+branca
+
+# linter
+pre-commit
+ruff
+black
+mypy
+bandit
+safety
+pydocstyle
