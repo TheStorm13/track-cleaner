@@ -1,0 +1,59 @@
+repos:
+  # Базовые хуки
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-merge-conflict
+      - id: check-ast
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Ruff - линтинг и форматирование
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Mypy - проверка типов
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - types-pyyaml
+          - types-python-dateutil
+        exclude: ^tests/
+        args:
+          - --strict
+          - --show-error-codes
+
+  # Проверка зависимостей
+#  - repo: https://github.com/pyupio/safety
+#    rev: v3.7.0
+#    hooks:
+#      - id: safety
+#        args: ["--ignore=70227", "--ignore=70228"]
+#        files: ^(requirements|pyproject|requirements\.txt)$
+
+  # Проверка документации
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        exclude: ^(tests|docs|migrations)/
+        args:
+          - "--convention=google"
+          - "--add-ignore=D107,D104,D100"
