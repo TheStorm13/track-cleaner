@@ -1,6 +1,10 @@
+import sys
 from pathlib import Path
 
-BASE_PATH = Path(__file__).parent.resolve()
+if getattr(sys, "frozen", False):
+    BASE_PATH = Path(sys.executable).resolve().parent
+else:
+    BASE_PATH = Path(__file__).resolve().parent
 
 # Упрощение трека
 TRACK_SIMPLIFICATION_TOLERANCE_M = 10.0
