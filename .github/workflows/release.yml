@@ -11,6 +11,8 @@ permissions:
 jobs:
   build-win:
     runs-on: windows-latest
+    env:
+      REPO_NAME: ${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,10 +28,10 @@ jobs:
 
       - name: Build exe
         run: |
-          pyinstaller -F -n track-cleaner src/main.py
+          pyinstaller -F -n "${{ env.REPO_NAME }}" src/main.py
 
       - name: Create release and upload exe (named)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes "dist\track-cleaner.exe#track-cleaner-${{ github.ref_name }}.exe"
+          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes "dist\${{ env.REPO_NAME }}.exe#${{ env.REPO_NAME }}-${{ github.ref_name }}.exe"
