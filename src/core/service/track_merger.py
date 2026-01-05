@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import gpxpy
 import gpxpy.gpx
@@ -8,15 +7,14 @@ logger = logging.getLogger(__name__)
 
 
 class TrackMerger:
-    """Объединяет несколько GPX-треков в один"""
+    """Класс для объединения нескольких GPX-треков в один."""
 
     def merge_gpx_tracks(
             self,
             gpx_list: list[gpxpy.gpx.GPX],
-            track_name: str = "Merged Track"
-    ) -> Optional[gpxpy.gpx.GPX]:
-        """
-        Объединяет список GPX-треков в один трек.
+            track_name: str = "Merged Track",
+    ) -> gpxpy.gpx.GPX | None:
+        """Объединяет список GPX-треков в один трек.
 
         Args:
             gpx_list: Список GPX-треков для объединения.
@@ -24,8 +22,8 @@ class TrackMerger:
 
         Returns:
             gpxpy.gpx.GPX: Объединённый GPX-трек, или None в случае ошибки.
-        """
 
+        """
         if not gpx_list:
             logger.warning("No GPX tracks provided for merging.")
             return None
@@ -43,22 +41,22 @@ class TrackMerger:
                 "Merged %d tracks into one with %d total points across %d segments",
                 len(gpx_list),
                 total_points,
-                len(master_track.segments)
+                len(master_track.segments),
             )
+
             return master_gpx
 
-        except Exception as e:
-            logger.exception("Failed to merge GPX tracks: %s", e)
-            return None
+        except Exception:
+            logger.exception("Failed to merge GPX tracks")
+        return None
 
     def _initialize_master_gpx(
             self,
             source_gpx: gpxpy.gpx.GPX,
             track_name: str,
-            track_count: int
+            track_count: int,
     ) -> gpxpy.gpx.GPX:
-        """
-        Инициализирует новый GPX-трек с метаданными из исходного GPX.
+        """Инициализирует новый GPX-трек с метаданными из исходного GPX.
 
         Args:
             source_gpx: Исходный GPX-трек, от которого будут взяты метаданные.
@@ -67,8 +65,8 @@ class TrackMerger:
 
         Returns:
             gpxpy.gpx.GPX: Новый GPX-трек с метаданными.
-        """
 
+        """
         gpx = gpxpy.gpx.GPX()
         gpx.name = track_name
         gpx.description = f"Merged from {track_count} tracks"
@@ -84,7 +82,7 @@ class TrackMerger:
     def _append_segments_from_gpx(
             self,
             gpx: gpxpy.gpx.GPX,
-            target_track: gpxpy.gpx.GPXTrack
+            target_track: gpxpy.gpx.GPXTrack,
     ) -> None:
         for track in gpx.tracks:
             for segment in track.segments:

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import gpxpy
 import gpxpy.gpx
@@ -10,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrackSimplifier:
-    """Упрощение трека путем сокращения точек с сохранением формы"""
+    """Упрощение трека путем сокращения точек с сохранением формы."""
 
     def __init__(self) -> None:
         self.distance_calculator = TrackAnalyzer()
@@ -19,15 +18,26 @@ class TrackSimplifier:
             self,
             gpx: gpxpy.gpx.GPX,
             min_distance: float,
-            preserve_key_points: bool = True
-    ) -> Optional[gpxpy.gpx.GPX]:
+            is_save_key_points: bool = True,
+    ) -> gpxpy.gpx.GPX | None:
+        """Упрощает GPX-трек, удаляя точки, которые находятся ближе заданного расстояния.
+
+        Args:
+            gpx (gpxpy.gpx.GPX): Исходный GPX-объект.
+            min_distance (float): Минимальное расстояние между точками.
+            is_save_key_points (bool): Сохранять ключевые точки (по умолчанию True).
+
+        Returns:
+            gpxpy.gpx.GPX | None: Упрощенный GPX-объект или None, если треков нет.
+
+        """
         if not gpx.tracks:
             logger.warning("GPX has no tracks to simplify.")
             return None
 
         try:
             simplified_gpx = self._copy_gpx_metadata(gpx)
-            key_points = self._find_key_points(gpx) if preserve_key_points else set()
+            key_points = self._find_key_points(gpx) if is_save_key_points else set()
 
             for original_track in gpx.tracks:
                 simplified_track = self._simplify_track(original_track, min_distance, key_points)
@@ -36,8 +46,8 @@ class TrackSimplifier:
             self._log_reduction_stats(gpx, simplified_gpx)
             return simplified_gpx
 
-        except Exception as e:
-            logger.exception("Failed to simplify GPX track: %s", e)
+        except Exception:
+            logger.exception("Failed to simplify GPX track")
             return None
 
     def _copy_gpx_metadata(self, gpx: gpxpy.gpx.GPX) -> gpxpy.gpx.GPX:
@@ -65,7 +75,7 @@ class TrackSimplifier:
             self,
             track: gpxpy.gpx.GPXTrack,
             min_distance: float,
-            key_points: set[gpxpy.gpx.GPXTrackPoint]
+            key_points: set[gpxpy.gpx.GPXTrackPoint],
     ) -> gpxpy.gpx.GPXTrack:
         simplified_track = gpxpy.gpx.GPXTrack()
         simplified_track.name = track.name
@@ -82,7 +92,7 @@ class TrackSimplifier:
             self,
             segment: gpxpy.gpx.GPXTrackSegment,
             min_distance: float,
-            key_points: set[gpxpy.gpx.GPXTrackPoint]
+            key_points: set[gpxpy.gpx.GPXTrackPoint],
     ) -> gpxpy.gpx.GPXTrackSegment:
         simplified_segment = gpxpy.gpx.GPXTrackSegment()
 
@@ -100,7 +110,7 @@ class TrackSimplifier:
 
             distance = self.distance_calculator.haversine_distance(
                 last_point.latitude, last_point.longitude,
-                point.latitude, point.longitude
+                point.latitude, point.longitude,
             )
 
             if distance >= min_distance:
@@ -119,6 +129,6 @@ class TrackSimplifier:
 
         reduction_percent = (original_points - simplified_points) / original_points * 100
         logger.info(
-            f"Simplified GPX track from {original_points} to {simplified_points} points "
-            f"({reduction_percent:.1f}% reduction)"
+            "Simplified GPX track from %d to %d points (%.1f%% reduction)",
+            original_points, simplified_points, reduction_percent,
         )

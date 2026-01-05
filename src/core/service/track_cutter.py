@@ -10,14 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 class TrackCutter:
-    def process_segment_static(self,
-                               segment_points,
+    """Класс для обработки GPX-треков, включая поиск и вырезание замыкающихся петель."""
+
+    @staticmethod
+    def process_segment_static(
+                               segment_points: list[gpxpy.gpx.GPXTrackPoint],
                                loop_closure_threshold_m: float,
                                min_closed_loop_length_km: float,
-                               max_closed_loop_length_km: float
+                               max_closed_loop_length_km: float,
                                ) -> tuple[list[gpxpy.gpx.GPX], list[tuple[int, int]]]:
-        """
-        Обрабатывает один сегмент трека для поиска замыкающихся петель.
+        """Обрабатывает один сегмент трека для поиска замыкающихся петель.
 
         Args:
             segment_points: список точек сегмента трека
@@ -27,10 +29,11 @@ class TrackCutter:
 
         Returns:
             tuple: список плохих GPX-сегментов и список диапазонов индексов, где найдены замыкающиеся петли
+
         """
         n = len(segment_points)
         bad_gpx_list = []
-        bad_ranges = []
+        bad_ranges: list[tuple[int, int]] = []
 
         for i in range(n):
             total_distance = 0.0
@@ -58,25 +61,25 @@ class TrackCutter:
                              gpx: gpxpy.gpx.GPX,
                              loop_closure_threshold_m: float,
                              min_closed_loop_length_km: float,
-                             max_closed_loop_length_km: float
+                             max_closed_loop_length_km: float,
                              ) -> list[gpxpy.gpx.GPX]:
-        """
-
+        """Извлекает "плохие" сегменты из GPX-трека.
 
         Args:
-            gpx:
-            max_closed_loop_length_km:
-            loop_closure_threshold_m:
-            min_closed_loop_length_km:
+            gpx: GPX-объект для анализа.
+            loop_closure_threshold_m: Пороговое расстояние для замыкания петли (в метрах).
+            min_closed_loop_length_km: Минимальная длина замкнутой петли (в километрах).
+            max_closed_loop_length_km: Максимальная длина замкнутой петли (в километрах).
 
         Returns:
+            list[gpxpy.gpx.GPX]: Список GPX-объектов, представляющих "плохие" сегменты.
 
         """
         all_segment_points = []
 
         for track in gpx.tracks:
             for segment in track.segments:
-                all_segment_points.append(segment.points)
+                all_segment_points.extend(segment.points)
 
         bad_gpx_list = []
         bad_ranges = []
@@ -85,8 +88,8 @@ class TrackCutter:
         with ProcessPoolExecutor() as executor:
             futures = [
                 executor.submit(
-                    self.process_segment_static,
-                    seg_points, loop_closure_threshold_m, min_closed_loop_length_km, max_closed_loop_length_km
+                    TrackCutter.process_segment_static,
+                    seg_points, loop_closure_threshold_m, min_closed_loop_length_km, max_closed_loop_length_km,
                 )
                 for seg_points in all_segment_points
             ]
@@ -96,8 +99,8 @@ class TrackCutter:
                     gpx_list, ranges = future.result()
                     bad_gpx_list.extend(gpx_list)
                     bad_ranges.extend(ranges)
-                except Exception as e:
-                    print(f"Ошибка в одном из процессов: {e}")
+                except Exception:
+                    logger.exception("Ошибка в одном из процессов")
 
         self.cut_ranges = bad_ranges
 
@@ -109,16 +112,17 @@ class TrackCutter:
     def cut_segments(self,
                      gpx: gpxpy.gpx.GPX,
                      bad_segments: list[gpxpy.gpx.GPX],
-                     bad_segments_indexes: list[int]
+                     bad_segments_indexes: list[int],
                      ) -> gpxpy.gpx.GPX:
-        """
+        """Вырезает "плохие" сегменты из GPX-трека.
 
         Args:
-            gpx:
-            bad_segments:
-            bad_segments_indexes:
+            gpx: Исходный GPX-объект.
+            bad_segments: Список "плохих" GPX-сегментов.
+            bad_segments_indexes: Индексы "плохих" сегментов.
 
         Returns:
+            gpxpy.gpx.GPX: GPX-объект без "плохих" сегментов.
 
         """
         # Собираем все "плохие" точки из указанных индексов
