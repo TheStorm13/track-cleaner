@@ -1,6 +1,6 @@
 from pathlib import Path
 
-BASE_PATH = Path(__file__).parent
+BASE_PATH = Path(__file__).parent.resolve()
 
 # Упрощение трека
 TRACK_SIMPLIFICATION_TOLERANCE_M = 10.0
