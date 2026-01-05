@@ -1,3 +1,4 @@
+# ruff: noqa: T201
 import copy
 import logging
 
@@ -13,15 +14,16 @@ from src.visualizer.track_visualizer import TrackVisualizer
 # Настройка логирования
 logging.basicConfig(
     level=logging.ERROR,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.StreamHandler()
-    ]
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger("main")
 
 
-def main():
+def main() -> None:
+    """Основная функция приложения GPX Cleaner."""
     # Инициализация основных компонентов приложения
     base_path = BASE_PATH
     manager = GPXStorage(base_path)
@@ -38,11 +40,7 @@ def main():
 
     # Поиск и загрузка GPX-файлов
     gpx_files = manager.find_gpx_files()
-    gpx_objects = []
-
-    for file_path in gpx_files:
-        if gpx := manager.load_gpx(file_path):
-            gpx_objects.append(gpx)
+    gpx_objects = [gpx for file_path in gpx_files if (gpx := manager.load_gpx(file_path))]
 
     if not gpx_objects:
         logger.error("No valid GPX files loaded. Exiting.")
@@ -79,7 +77,7 @@ def main():
 
     track_map = visualizer.plot_track_with_bad_segments(
         base_gpx=simplified_track,
-        bad_segments=bad_segments
+        bad_segments=bad_segments,
     )
 
     visualizer.save_map(track_map, "track_with_bad_segments.html")
@@ -90,7 +88,7 @@ def main():
     cutting_track = cutter.cut_segments(
         copy.deepcopy(simplified_track),
         bad_segments=bad_segments,
-        bad_segments_indexes=bad_segments_input
+        bad_segments_indexes=bad_segments_input,
     )
 
     track_map = visualizer.plot_single_track(cutting_track)
@@ -100,14 +98,14 @@ def main():
 
     compare_tracks_map = visualizer.plot_compare_tracks(
         simplified_track,
-        cutting_track
+        cutting_track,
     )
 
     visualizer.save_map(compare_tracks_map, "compare_simplified_and_result.html")
 
     compare_tracks_map = visualizer.plot_compare_tracks(
         merged_track,
-        cutting_track
+        cutting_track,
     )
 
     visualizer.save_map(compare_tracks_map, "compare_merged_and_result.html")
@@ -122,4 +120,4 @@ if __name__ == "__main__":
         main()
 
     except Exception as e:
-        logger.critical(f"Unhandled exception in main: {e}", exc_info=True)
+        logger.critical("Unhandled exception in main: %s", e, exc_info=True)
