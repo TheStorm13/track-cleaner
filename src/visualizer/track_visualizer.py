@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import Optional
 
 import branca.colormap as cm
 import folium
@@ -16,22 +15,25 @@ logger = logging.getLogger(__name__)
 
 
 class TrackVisualizer:
-    """Класс для визуализации GPX-треков на интерактивных картах"""
+    """Класс для визуализации GPX-треков на интерактивных картах."""
 
-    DEFAULT_ZOOM = 8
-    DEFAULT_COLORS = ['blue', 'green']
+    DEFAULT_ZOOM: int = 8
+    DEFAULT_COLORS: list[str] = ["blue", "green"]
+    MIN_POINTS_FOR_SEGMENT: int = 2  # Константа для минимального количества точек
 
-    def __init__(self, base_path: Path = BASE_PATH, default_zoom: int = DEFAULT_ZOOM):
-        """
-        Инициализация визуализатора
-        :param tiles: Стиль карты (OpenStreetMap, Stamen Terrain, CartoDB positron)
-        :param default_zoom: Уровень масштабирования по умолчанию
+    def __init__(self, base_path: Path = BASE_PATH, default_zoom: int = DEFAULT_ZOOM) -> None:
+        """Инициализация визуализатора.
+
+        Args:
+            base_path (Path): Базовый путь для сохранения карт.
+            default_zoom (int): Уровень масштабирования карты по умолчанию.
+
         """
         self.default_zoom = default_zoom
         self.color_maps = {
-            'elevation': cm.linear.YlOrRd_09,
-            'speed': cm.linear.PuBuGn_09,
-            'slope': cm.linear.RdYlGn_11
+            "elevation": cm.linear.YlOrRd_09,
+            "speed": cm.linear.PuBuGn_09,
+            "slope": cm.linear.RdYlGn_11,
         }
 
         self.maps_dir = base_path / "maps"
@@ -40,16 +42,32 @@ class TrackVisualizer:
         logger.info("GPX visualizer initialized")
 
     def _create_base_map(self, center: tuple[float, float]) -> folium.Map:
-        """Создание базовой карты с центром в указанных координатах"""
+        """Создает базовую карту с заданным центром.
+
+        Args:
+            center (tuple[float, float]): Координаты центра карты (широта, долгота).
+
+        Returns:
+            folium.Map: Объект карты Folium.
+
+        """
         return folium.Map(
             location=center,
             zoom_start=self.default_zoom,
-            control_scale=True
+            control_scale=True,
         )
 
     @staticmethod
     def _calculate_center(gpx: gpxpy.gpx.GPX) -> tuple[float, float]:
-        """Расчет центра карты по точкам трека"""
+        """Вычисляет центр карты на основе точек GPX-трека.
+
+        Args:
+            gpx (gpxpy.gpx.GPX): GPX-объект.
+
+        Returns:
+            tuple[float, float]: Координаты центра (широта, долгота).
+
+        """
         lats = []
         lons = []
 
@@ -64,15 +82,33 @@ class TrackVisualizer:
 
         return (np.mean(lats), np.mean(lons))
 
+    def _collect_points(self, gpx_objects: list[gpxpy.gpx.GPX]) -> list[gpxpy.gpx.GPXTrackPoint]:
+        """Собирает все точки из списка GPX-объектов."""
+        points: list[gpxpy.gpx.GPXTrackPoint] = []
+        for gpx in gpx_objects:
+            for track in gpx.tracks:
+                for segment in track.segments:
+                    points.extend(segment.points)
+        return points
+
     def plot_single_track(
             self,
             gpx: gpxpy.gpx.GPX,
             map_title: str = "GPX Track",
             color_by: str = "elevation",
-            line_weight: int = 3
-    ) -> folium.Map:
-        """
-        Визуализация одного трека, с разделением по сегментам разными цветами
+            line_weight: int = 3,
+    ) -> folium.Map | None:
+        """Визуализирует один GPX-трек с окрашиванием по сегментам.
+
+        Args:
+            gpx (gpxpy.gpx.GPX): GPX-объект для визуализации.
+            map_title (str): Заголовок карты.
+            color_by (str): Критерий окрашивания трека ("elevation", "speed", "slope").
+            line_weight (int): Толщина линий трека.
+
+        Returns:
+            folium.Map: Объект карты Folium.
+
         """
         try:
             center = self._calculate_center(gpx)
@@ -94,7 +130,7 @@ class TrackVisualizer:
             track_index = 0
             for track in gpx.tracks:
                 for segment in track.segments:
-                    if len(segment.points) < 2:
+                    if len(segment.points) < self.MIN_POINTS_FOR_SEGMENT:
                         continue
 
                     # Создаем FeatureGroup для сегмента
@@ -103,7 +139,7 @@ class TrackVisualizer:
                     folium_map.add_child(track_group)
 
                     # Получаем координаты и значения для окраски
-                    locations, values = self._process_segment(segment, color_by)
+                    locations, _values = self._process_segment(segment, color_by)
 
                     # Выбираем цвет
                     color = colors[track_index % len(colors)]
@@ -113,7 +149,7 @@ class TrackVisualizer:
                         color=color,
                         weight=line_weight,
                         opacity=0.8,
-                        popup=group_name
+                        popup=group_name,
                     ).add_to(track_group)
 
                     track_index += 1
@@ -123,13 +159,23 @@ class TrackVisualizer:
 
             return folium_map
 
-        except Exception as e:
-            logger.error(f"Error visualizing track: {e}", exc_info=True)
-            return None
+        except Exception:
+            logger.exception("Error visualizing track: %s")
+        return None
 
-    def _process_segment(self, segment: gpxpy.gpx.GPXTrackSegment, color_by: str) -> tuple[
-        list[list[float]], list[float]]:
-        """Обрабатывает сегмент и возвращает координаты и значения для цветовой окраски"""
+    def _process_segment(
+            self, segment: gpxpy.gpx.GPXTrackSegment, color_by: str,
+    ) -> tuple[list[list[float]], list[float]]:
+        """Обрабатывает сегмент трека для визуализации.
+
+        Args:
+            segment (gpxpy.gpx.GPXTrackSegment): Сегмент GPX-трека.
+            color_by (str): Критерий окрашивания ("elevation", "speed", "slope").
+
+        Returns:
+            tuple[list[list[float]], list[float]]: Список координат и значений для окрашивания.
+
+        """
         locations = []
         values = []
         prev_point = None
@@ -158,15 +204,24 @@ class TrackVisualizer:
 
         return locations, values
 
-    def save_map(self, folium_map: folium.Map, file_path: Path) -> bool:
-        """Сохранение карты в HTML-файл"""
+    def save_map(self, folium_map: folium.Map, file_path: str | Path) -> bool:
+        """Сохраняет карту в HTML-файл.
+
+        Args:
+            folium_map (folium.Map): Объект карты Folium.
+            file_path (str or Path): Путь для сохранения файла.
+
+        Returns:
+            bool: True, если карта успешно сохранена, иначе False.
+
+        """
         try:
             path = self.maps_dir / Path(file_path)
             folium_map.save(str(path))
-            logger.info(f"Map saved to: {path.resolve()}")
+            logger.info("Map saved to: %s", path.resolve())
             return True
-        except Exception as e:
-            logger.error(f"Error saving map: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error saving map: %s")
             return False
 
     def plot_track_with_bad_segments(
@@ -175,16 +230,23 @@ class TrackVisualizer:
             bad_segments: list[gpxpy.gpx.GPX],
             base_color: str = "blue",
             bad_segments_color: str = "red",
-            line_weight: int = 4
-    ) -> Optional[folium.Map]:
-        try:
-            # Собираем все точки для вычисления центра карты
-            all_points = []
-            for gpx in [base_gpx] + bad_segments:
-                for track in gpx.tracks:
-                    for segment in track.segments:
-                        all_points.extend(segment.points)
+            line_weight: int = 4,
+    ) -> folium.Map | None:
+        """Визуализирует трек с выделением плохих сегментов.
 
+        Args:
+            base_gpx (gpxpy.gpx.GPX): Основной GPX-трек.
+            bad_segments (list[gpxpy.gpx.GPX]): Список GPX-треков с плохими сегментами.
+            base_color (str): Цвет основного трека.
+            bad_segments_color (str): Цвет плохих сегментов.
+            line_weight (int): Толщина линий трека.
+
+        Returns:
+            folium.Map | None: Объект карты Folium или None в случае ошибки.
+
+        """
+        try:
+            all_points = self._collect_points([base_gpx, *bad_segments])
             if not all_points:
                 logger.warning("No points found for visualization")
                 return None
@@ -200,7 +262,7 @@ class TrackVisualizer:
 
             for track in base_gpx.tracks:
                 for segment in track.segments:
-                    if len(segment.points) < 2:
+                    if len(segment.points) < self.MIN_POINTS_FOR_SEGMENT:
                         continue
                     locations = [[p.latitude, p.longitude] for p in segment.points]
                     folium.PolyLine(
@@ -208,7 +270,7 @@ class TrackVisualizer:
                         color=base_color,
                         weight=line_weight,
                         opacity=0.7,
-                        popup="Основной трек"
+                        popup="Основной трек",
                     ).add_to(base_group)
 
             # Добавляем плохие сегменты
@@ -225,7 +287,7 @@ class TrackVisualizer:
                             color=bad_segments_color,
                             weight=line_weight + 1,
                             opacity=0.9,
-                            popup=group_name
+                            popup=group_name,
                         ).add_to(segment_group)
                         # Находим центр сегмента для подписи
                         center_lat = np.mean([p.latitude for p in segment.points])
@@ -237,7 +299,7 @@ class TrackVisualizer:
                             icon=DivIcon(
                                 icon_size=(170, 36),
                                 icon_anchor=(0, 0),
-                                html=f'''
+                                html=f"""
                                         <div style="
                                             font-size: 12pt;
                                             color: black;
@@ -247,8 +309,8 @@ class TrackVisualizer:
                                             font-weight: bold;
                                             white-space: nowrap;">
                                             {group_name}
-                                        </div>'''
-                            )
+                                        </div>""",
+                            ),
                         ).add_to(folium_map)
 
             # Добавляем контроль слоев
@@ -256,9 +318,43 @@ class TrackVisualizer:
 
             return folium_map
 
-        except Exception as e:
-            logger.error(f"Ошибка при визуализации трека: {e}", exc_info=True)
-            return None
+        except Exception:
+            logger.exception("Ошибка при визуализации трека: %s")
+        return None
+
+    def _add_track_to_map(
+            self,
+            folium_map: folium.Map,
+            gpx: gpxpy.gpx.GPX,
+            group_name: str,
+            color: str,
+            line_weight: int,
+    ) -> None:
+        """Добавляет GPX-трек на карту в указанную группу.
+
+        Args:
+            folium_map (folium.Map): Объект карты Folium.
+            gpx (gpxpy.gpx.GPX): GPX-трек для добавления.
+            group_name (str): Название группы слоя.
+            color (str): Цвет трека.
+            line_weight (int): Толщина линий трека.
+
+        """
+        group = folium.FeatureGroup(name=group_name, show=True)
+        folium_map.add_child(group)
+
+        for track in gpx.tracks:
+            for segment in track.segments:
+                if len(segment.points) < self.MIN_POINTS_FOR_SEGMENT:
+                    continue
+                locations = [[p.latitude, p.longitude] for p in segment.points]
+                folium.PolyLine(
+                    locations=locations,
+                    color=color,
+                    weight=line_weight,
+                    opacity=0.7,
+                    popup=group_name,
+                ).add_to(group)
 
     def plot_compare_tracks(
             self,
@@ -266,8 +362,21 @@ class TrackVisualizer:
             gpx2: gpxpy.gpx.GPX,
             color1: str = "red",
             color2: str = "blue",
-            line_weight: int = 4
-    ) -> Optional[folium.Map]:
+            line_weight: int = 4,
+    ) -> folium.Map | None:
+        """Сравнивает два GPX-трека на одной карте.
+
+        Args:
+            gpx1 (gpxpy.gpx.GPX): Первый GPX-трек.
+            gpx2 (gpxpy.gpx.GPX): Второй GPX-трек.
+            color1 (str): Цвет первого трека.
+            color2 (str): Цвет второго трека.
+            line_weight (int): Толщина линий трека.
+
+        Returns:
+            folium.Map | None: Объект карты Folium или None в случае ошибки.
+
+        """
         try:
             # Собираем все точки для вычисления центра карты
             all_points = []
@@ -285,45 +394,15 @@ class TrackVisualizer:
                       np.mean([p.longitude for p in all_points]))
             folium_map = self._create_base_map(center)
 
-            # Добавляем первый трек
-            group1 = folium.FeatureGroup(name="Трек 1", show=True)
-            folium_map.add_child(group1)
-
-            for track in gpx1.tracks:
-                for segment in track.segments:
-                    if len(segment.points) < 2:
-                        continue
-                    locations = [[p.latitude, p.longitude] for p in segment.points]
-                    folium.PolyLine(
-                        locations=locations,
-                        color=color1,
-                        weight=line_weight,
-                        opacity=0.7,
-                        popup="Трек 1"
-                    ).add_to(group1)
-
-            # Добавляем второй трек
-            group2 = folium.FeatureGroup(name="Трек 2", show=True)
-            folium_map.add_child(group2)
-
-            for track in gpx2.tracks:
-                for segment in track.segments:
-                    if len(segment.points) < 2:
-                        continue
-                    locations = [[p.latitude, p.longitude] for p in segment.points]
-                    folium.PolyLine(
-                        locations=locations,
-                        color=color2,
-                        weight=line_weight,
-                        opacity=0.7,
-                        popup="Трек 2"
-                    ).add_to(group2)
+            # Добавляем треки на карту
+            self._add_track_to_map(folium_map, gpx1, "Трек 1", color1, line_weight)
+            self._add_track_to_map(folium_map, gpx2, "Трек 2", color2, line_weight)
 
             # Добавляем контроль слоев
             folium.LayerControl().add_to(folium_map)
 
             return folium_map
 
-        except Exception as e:
-            logger.error(f"Ошибка при визуализации сравнения треков: {e}", exc_info=True)
-            return None
+        except Exception:
+            logger.exception("Ошибка при визуализации сравнения треков: %s")
+        return None
